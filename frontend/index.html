@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出海船员管理系统 - 登录</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 300px;
+            text-align: center;
+        }
+        h2 { color: #343a40; margin-bottom: 20px; }
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <h2>🚢 船员系统登录</h2>
+    <input type="text" id="username" placeholder="请输入用户名 (如: admin)">
+    <input type="password" id="password" placeholder="请输入密码">
+    <button onclick="login()">登 录</button>
+</div>
+
+<script src="common.js"></script>
+<script>
+async function login() {
+    var user = document.getElementById('username').value;
+    var pass = document.getElementById('password').value;
+
+    if (!user || !pass) {
+        showToast('账号和密码不能为空', 'error');
+        return;
+    }
+
+    try {
+        var result = await apiPost('/api/login', { username: user, password: pass });
+        if (result.success) {
+            localStorage.setItem('crewId', result.id);
+            localStorage.setItem('crewName', result.name);
+            if (result.role === 'admin') {
+                alert('🎉 欢迎管理员：' + result.name);
+                window.location.href = 'admin.html';
+            } else {
+                alert('👋 欢迎船员：' + result.name);
+                window.location.href = 'user.html';
+            }
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        showToast('网络请求失败，请检查后端是否启动', 'error');
+    }
+}
+</script>
+</body>
+</html>

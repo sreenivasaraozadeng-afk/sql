@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>船员档案管理</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+
+<div class="header-bar">
+    <h2>👨‍✈️ 船员档案管理</h2>
+    <button onclick="openAddModal()">+ 新增船员</button>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-label">👥 总注册船员 (人)</div>
+        <div class="stat-value" id="statTotal">-</div>
+    </div>
+    <div class="stat-card warning">
+        <div class="stat-label">🌊 当前出海中 (人)</div>
+        <div class="stat-value" id="statAtSea">-</div>
+    </div>
+</div>
+
+<div class="search-bar">
+    <input type="text" id="searchName" placeholder="🔍 搜索姓名..." oninput="doSearch()">
+    <select id="filterStatus" onchange="doSearch()">
+        <option value="">全部状态</option>
+        <option value="available">在岸可派遣</option>
+        <option value="pending">待上船</option>
+        <option value="at_sea">出海中</option>
+        <option value="inactive">已停用</option>
+    </select>
+    <select id="filterPosition" onchange="doSearch()">
+        <option value="">全部岗位</option>
+    </select>
+    <span style="color:#888;font-size:13px;" id="resultCount"></span>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>账号</th>
+            <th>姓名</th>
+            <th>性别</th>
+            <th>电话</th>
+            <th>岗位</th>
+            <th>状态</th>
+            <th>角色</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody id="crewTableBody">
+        <tr><td colspan="9" style="text-align:center;">正在加载数据...</td></tr>
+    </tbody>
+</table>
+
+<div class="pagination" id="pagination"></div>
+
+<!-- 新增船员弹窗 -->
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <h3>新增入职船员</h3>
+        <form id="addCrewForm">
+            <div class="form-group">
+                <label>登录账号</label>
+                <input type="text" id="addUsername" required>
+            </div>
+            <div class="form-group">
+                <label>初始密码</label>
+                <input type="text" id="addPassword" required>
+            </div>
+            <div class="form-group">
+                <label>真实姓名</label>
+                <input type="text" id="addName" required>
+            </div>
+            <div class="form-group">
+                <label>性别</label>
+                <select id="addGender">
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>身份证号</label>
+                <input type="text" id="addIdCard" required maxlength="18">
+            </div>
+            <div class="form-group">
+                <label>联系电话</label>
+                <input type="text" id="addPhone">
+            </div>
+            <div class="form-group">
+                <label>岗位</label>
+                <input type="text" id="addPosition" value="crew">
+            </div>
+            <div class="form-group">
+                <label>系统角色</label>
+                <select id="addRole">
+                    <option value="user">普通船员</option>
+                    <option value="admin">系统管理员</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeAddModal()">取消</button>
+                <button type="submit">确认保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 编辑船员弹窗 -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h3>编辑船员资料</h3>
+        <form id="editCrewForm">
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <label>真实姓名</label>
+                <input type="text" id="editName" required>
+            </div>
+            <div class="form-group">
+                <label>性别</label>
+                <select id="editGender">
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>联系电话</label>
+                <input type="text" id="editPhone">
+            </div>
+            <div class="form-group">
+                <label>岗位</label>
+                <input type="text" id="editPosition" required>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeEditModal()">取消</button>
+                <button type="submit">保存修改</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+// ========== 全局状态 ==========
+var allCrews = [];
+var currentPage = 1;
+var pageSize = 10;
+
+// ========== 初始化 ==========
+window.onload = function() {
+    loadAllData();
+};
+
+async function loadAllData() {
+    try {
+        var statsPromise = apiGet('/api/stats');
+        var crewsPromise = apiGet('/api/crews');
+        var statsResult = await statsPromise;
+        var crewsResult = await crewsPromise;
+
+        if (statsResult.success) {
+            document.getElementById('statTotal').innerText = statsResult.data.total;
+            document.getElementById('statAtSea').innerText = statsResult.data.at_sea;
+        }
+
+        if (crewsResult.success) {
+            allCrews = crewsResult.data;
+            initPositionFilter();
+            doSearch();
+        } else {
+            showToast('加载船员数据失败', 'error');
+        }
+    } catch (e) {
+        showToast('网络请求失败，请检查后端是否启动', 'error');
+    }
+}
+
+// ========== 岗位筛选下拉框 ==========
+function initPositionFilter() {
+    var positions = [];
+    var seen = {};
+    allCrews.forEach(function(c) {
+        if (c.position && !seen[c.position]) {
+            seen[c.position] = true;
+            positions.push(c.position);
+        }
+    });
+    positions.sort();
+    var sel = document.getElementById('filterPosition');
+    positions.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        sel.appendChild(opt);
+    });
+}
+
+// ========== 搜索与筛选 ==========
+function doSearch() {
+    currentPage = 1;
+    renderPage();
+}
+
+function getFilteredData() {
+    var nameFilter = document.getElementById('searchName').value.toLowerCase();
+    var statusFilter = document.getElementById('filterStatus').value;
+    var posFilter = document.getElementById('filterPosition').value;
+
+    return allCrews.filter(function(c) {
+        if (nameFilter && c.name.toLowerCase().indexOf(nameFilter) === -1) return false;
+        if (statusFilter && c.status !== statusFilter) return false;
+        if (posFilter && c.position !== posFilter) return false;
+        return true;
+    });
+}
+
+// ========== 分页渲染 ==========
+function renderPage() {
+    var filtered = getFilteredData();
+    var totalPages = Math.ceil(filtered.length / pageSize) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    var start = (currentPage - 1) * pageSize;
+    var pageData = filtered.slice(start, start + pageSize);
+
+    document.getElementById('resultCount').innerText =
+        '共 ' + filtered.length + ' 条记录，第 ' + currentPage + '/' + totalPages + ' 页';
+
+    renderTable(pageData);
+    renderPagination(totalPages);
+}
+
+function renderTable(data) {
+    var tbody = document.getElementById('crewTableBody');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#888;">暂无匹配的船员数据</td></tr>';
+        return;
+    }
+
+    data.forEach(function(crew) {
+        var statusTag = '';
+        var statusBtnHtml = '';
+
+        var statusMap = {
+            'available': { tag: '<span class="tag-land">在岸</span>', next: 'at_sea', btnText: '出海', btnClass: 'action-btn btn-status' },
+            'pending':   { tag: '<span style="color:#faad14;font-size:12px;">待上船</span>', next: 'available', btnText: '召回', btnClass: 'action-btn btn-status recall' },
+            'at_sea':    { tag: '<span class="tag-sea">出海中</span>', next: 'available', btnText: '召回', btnClass: 'action-btn btn-status recall' },
+            'inactive':  { tag: '<span style="color:#999;font-size:12px;">已停用</span>', next: 'available', btnText: '启用', btnClass: 'action-btn btn-status' }
+        };
+
+        var info = statusMap[crew.status] || statusMap['available'];
+        statusTag = info.tag;
+
+        if (info.btnText) {
+            statusBtnHtml = '<button class="' + info.btnClass + '" onclick="changeStatus(' + crew.id + ',\'' + info.next + '\')">' + info.btnText + '</button>';
+        }
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+            '<td>' + crew.id + '</td>' +
+            '<td>' + crew.username + '</td>' +
+            '<td>' + crew.name + '</td>' +
+            '<td>' + crew.gender + '</td>' +
+            '<td>' + (crew.phone || '未填写') + '</td>' +
+            '<td>' + crew.position + '</td>' +
+            '<td>' + statusTag + '</td>' +
+            '<td>' + (crew.role === 'admin' ? '管理员' : '船员') + '</td>' +
+            '<td>' +
+                '<button class="action-btn btn-edit" onclick="openEditModal(' + crew.id + ',\'' + escAttr(crew.name) + '\',\'' + crew.gender + '\',\'' + (crew.phone || '') + '\',\'' + escAttr(crew.position) + '\')">编辑</button>' +
+                statusBtnHtml +
+                '<button class="action-btn btn-delete" onclick="deleteCrew(' + crew.id + ',\'' + escAttr(crew.name) + '\')">删除</button>' +
+            '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function escAttr(str) {
+    return String(str).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+function renderPagination(totalPages) {
+    var container = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    var html = '';
+    html += '<button onclick="goPage(' + (currentPage - 1) + ')"' + (currentPage <= 1 ? ' disabled' : '') + '>上一页</button>';
+    html += '<span>' + currentPage + ' / ' + totalPages + '</span>';
+    html += '<button onclick="goPage(' + (currentPage + 1) + ')"' + (currentPage >= totalPages ? ' disabled' : '') + '>下一页</button>';
+    container.innerHTML = html;
+}
+
+function goPage(page) {
+    var totalPages = Math.ceil(getFilteredData().length / pageSize) || 1;
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    renderPage();
+}
+
+// ========== 状态切换 ==========
+async function changeStatus(id, newStatus) {
+    try {
+        var result = await apiPut('/api/crews/' + id, { status: newStatus });
+        if (result.success) {
+            showToast('状态更新成功', 'success');
+            loadAllData();
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        showToast('状态更新失败', 'error');
+    }
+}
+
+// ========== 删除船员 ==========
+async function deleteCrew(id, name) {
+    if (!confirm('⚠️ 确定要永久删除船员【' + name + '】的档案吗？')) return;
+    try {
+        var result = await apiDelete('/api/crews/' + id);
+        if (result.success) {
+            showToast('删除成功', 'success');
+            loadAllData();
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        showToast('删除失败', 'error');
+    }
+}
+
+// ========== 编辑弹窗 ==========
+function openEditModal(id, name, gender, phone, position) {
+    document.getElementById('editId').value = id;
+    document.getElementById('editName').value = name;
+    document.getElementById('editGender').value = gender;
+    document.getElementById('editPhone').value = phone || '';
+    document.getElementById('editPosition').value = position;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+
+document.getElementById('editCrewForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var id = document.getElementById('editId').value;
+    var body = {
+        name: document.getElementById('editName').value,
+        gender: document.getElementById('editGender').value,
+        phone: document.getElementById('editPhone').value || null,
+        position: document.getElementById('editPosition').value
+    };
+    try {
+        var result = await apiPut('/api/crews/' + id, body);
+        if (result.success) {
+            showToast('修改成功', 'success');
+            closeEditModal();
+            loadAllData();
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        showToast('修改失败', 'error');
+    }
+});
+
+// ========== 新增弹窗 ==========
+function openAddModal() {
+    document.getElementById('addModal').style.display = 'flex';
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').style.display = 'none';
+    document.getElementById('addCrewForm').reset();
+}
+
+document.getElementById('addCrewForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var body = {
+        username: document.getElementById('addUsername').value,
+        password: document.getElementById('addPassword').value,
+        name: document.getElementById('addName').value,
+        gender: document.getElementById('addGender').value,
+        id_card: document.getElementById('addIdCard').value,
+        phone: document.getElementById('addPhone').value || null,
+        position: document.getElementById('addPosition').value,
+        role: document.getElementById('addRole').value
+    };
+    try {
+        var result = await apiPost('/api/crews', body);
+        if (result.success) {
+            showToast('船员添加成功', 'success');
+            closeAddModal();
+            loadAllData();
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        showToast('网络错误，提交失败', 'error');
+    }
+});
+</script>
+</body>
+</html>

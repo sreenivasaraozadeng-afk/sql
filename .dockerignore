@@ -1,0 +1,13 @@
+.git
+.venv
+.tmp
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.log
+backend/uvicorn.log
+backend/uvicorn.err.log
+node_modules
+.DS_Store
+seafarer-admin-running.png

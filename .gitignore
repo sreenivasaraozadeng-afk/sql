@@ -1,0 +1,17 @@
+# 忽略 Node.js 的依赖文件夹
+node_modules/
+
+# Python / FastAPI runtime artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.tmp/
+
+# Local service logs
+*.log
+
+# Database files
+*.db
+
+# Local screenshots and generated previews
+seafarer-admin-running.png

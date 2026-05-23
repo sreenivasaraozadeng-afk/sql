@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出海航次管理</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .form-group input[type="datetime-local"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+<div class="header-bar">
+    <h2>🌊 出海航次调度台</h2>
+    <button onclick="openModal()">+ 分配新航次</button>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>航次流水号</th>
+            <th>被派船员姓名</th>
+            <th>出发港口</th>
+            <th>目的港口</th>
+            <th>出发时间</th>
+            <th>预计到达时间</th>
+            <th>当前状态</th>
+        </tr>
+    </thead>
+    <tbody id="voyageTableBody">
+        <tr><td colspan="7" style="text-align: center;">正在加载航次数据...</td></tr>
+    </tbody>
+</table>
+
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <h3>分配出海任务</h3>
+        <form id="addVoyageForm">
+            <div class="form-group">
+                <label>指派船员</label>
+                <select id="crew_id" required>
+                    <option value="">-- 请选择要派出的船员 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>出发港口</label>
+                <input type="text" id="departure_point" placeholder="例如：上海洋山港" required>
+            </div>
+            <div class="form-group">
+                <label>目的港口</label>
+                <input type="text" id="destination_point" placeholder="例如：新加坡港" required>
+            </div>
+            <div class="form-group">
+                <label>出发时间</label>
+                <input type="datetime-local" id="departure_time" required>
+            </div>
+            <div class="form-group">
+                <label>预计到达时间</label>
+                <input type="datetime-local" id="expected_arrival_time" required>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeModal()">取消</button>
+                <button type="submit">确认下发任务</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+window.onload = function() {
+    loadVoyages();
+    loadCrewOptions();
+};
+
+async function loadVoyages() {
+    try {
+        var result = await apiGet('/api/voyages');
+        if (result.success) renderTable(result.data);
+    } catch (e) {
+        showToast('加载航次数据失败', 'error');
+    }
+}
+
+function renderTable(data) {
+    var tbody = document.getElementById('voyageTableBody');
+    tbody.innerHTML = '';
+
+    data.forEach(function(voyage) {
+        var statusTag = voyage.status === '进行中'
+            ? '<span class="tag-running">进行中</span>'
+            : '<span class="tag-arrived">已抵达</span>';
+
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+            '<td># ' + voyage.record_id + '</td>' +
+            '<td style="font-weight:bold;color:#1890ff;">' + voyage.crew_name + '</td>' +
+            '<td>' + voyage.departure_point + '</td>' +
+            '<td>' + voyage.destination_point + '</td>' +
+            '<td>' + formatTime(voyage.departure_time) + '</td>' +
+            '<td>' + formatTime(voyage.expected_arrival_time) + '</td>' +
+            '<td>' + statusTag + '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function openModal() { document.getElementById('addModal').style.display = 'flex'; }
+function closeModal() {
+    document.getElementById('addModal').style.display = 'none';
+    document.getElementById('addVoyageForm').reset();
+}
+
+document.getElementById('addVoyageForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var body = {
+        crew_id: document.getElementById('crew_id').value,
+        departure_point: document.getElementById('departure_point').value,
+        destination_point: document.getElementById('destination_point').value,
+        departure_time: document.getElementById('departure_time').value,
+        expected_arrival_time: document.getElementById('expected_arrival_time').value
+    };
+    try {
+        var result = await apiPost('/api/voyages', body);
+        if (result.success) {
+            showToast('航次任务分配成功', 'success');
+            closeModal();
+            loadVoyages();
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        showToast('网络错误，提交失败', 'error');
+    }
+});
+
+async function loadCrewOptions() {
+    try {
+        var result = await apiGet('/api/crews');
+        if (result.success) {
+            var select = document.getElementById('crew_id');
+            select.innerHTML = '<option value="">-- 请选择要派出的船员 --</option>';
+            result.data.forEach(function(crew) {
+                var statusStr = crew.status === 'at_sea' ? ' (正在出海中...)' : ' (在岸待命)';
+                var option = document.createElement('option');
+                option.value = crew.id;
+                option.textContent = crew.name + ' - 账号:' + crew.username + statusStr;
+                select.appendChild(option);
+            });
+        }
+    } catch (e) {
+        showToast('拉取船员名单失败', 'error');
+    }
+}
+</script>
+</body>
+</html>
