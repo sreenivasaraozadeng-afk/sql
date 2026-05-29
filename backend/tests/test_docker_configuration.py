@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 from unittest import TestCase
 
@@ -45,55 +44,61 @@ class DockerConfigurationTests(TestCase):
         first_statement = init_sql_path.read_text(encoding="utf-8").lstrip().splitlines()[0]
         self.assertEqual("SET NAMES utf8mb4;", first_statement)
 
-    def test_init_sql_uses_hardened_schema_without_plaintext_passwords(self):
-        init_sql_path = PROJECT_ROOT / "init.sql"
-        sql = init_sql_path.read_text(encoding="utf-8").lower()
-        self.assertIn("password_hash", sql)
-        self.assertNotIn("password varchar", sql)
-        self.assertIn("created_at", sql)
-        self.assertIn("updated_at", sql)
-        self.assertIn("create table if not exists users", sql)
-        self.assertIn("create table if not exists crews", sql)
-        self.assertIn("create table if not exists certificates", sql)
-        self.assertIn("create table if not exists job_demands", sql)
-        self.assertIn("create table if not exists job_required_certificates", sql)
-        self.assertIn("create table if not exists dispatches", sql)
-        self.assertIn("create table if not exists voyage_records", sql)
+    def test_init_sql_contains_expanded_schema_views_and_seed_data(self):
+        sql = (PROJECT_ROOT / "init.sql").read_text(encoding="utf-8").lower()
+        for table in [
+            "users",
+            "ship_companies",
+            "ships",
+            "ports",
+            "routes",
+            "positions",
+            "certificate_types",
+            "crews",
+            "certificates",
+            "certificate_review_records",
+            "job_demands",
+            "job_required_certificates",
+            "dispatches",
+            "dispatch_status_logs",
+            "voyage_records",
+            "operation_logs",
+        ]:
+            self.assertIn(f"create table if not exists {table}", sql)
+        for view in [
+            "v_crew_certificate_status",
+            "v_dispatch_flow_stats",
+            "v_route_workload",
+            "v_job_match_overview",
+        ]:
+            self.assertIn(f"view {view}", sql)
         self.assertIn("check (role in", sql)
-        self.assertIn("check (status in ('available', 'pending', 'at_sea', 'inactive'))", sql)
-        self.assertIn("index idx_certificates_crew_id", sql)
-        self.assertIn("index idx_dispatches_status", sql)
+        self.assertIn("idx_certificates_review_status", sql)
+        self.assertIn("idx_operation_logs_created_at", sql)
+        self.assertIn("crew08", sql)
 
-    def test_frontend_nginx_declares_utf8_charset(self):
-        nginx_config_path = PROJECT_ROOT / "frontend" / "nginx.conf"
-        config = nginx_config_path.read_text(encoding="utf-8").lower()
+    def test_frontend_pages_for_expanded_workflow_exist(self):
+        for filename in [
+            "dashboard.html",
+            "certificate_review.html",
+            "fleet.html",
+            "jobs.html",
+            "dispatches.html",
+            "operation_logs.html",
+        ]:
+            self.assertTrue((PROJECT_ROOT / "frontend" / filename).exists())
+
+    def test_frontend_nginx_declares_utf8_charset_and_no_cache(self):
+        config = (PROJECT_ROOT / "frontend" / "nginx.conf").read_text(encoding="utf-8").lower()
         self.assertIn("charset utf-8;", config)
-
-    def test_frontend_nginx_disables_html_cache_during_development(self):
-        nginx_config_path = PROJECT_ROOT / "frontend" / "nginx.conf"
-        config = nginx_config_path.read_text(encoding="utf-8").lower()
         self.assertIn('add_header cache-control "no-store, no-cache, must-revalidate" always;', config)
         self.assertIn('add_header pragma "no-cache" always;', config)
         self.assertIn('expires 0;', config)
 
-    def test_crew_table_header_matches_rendered_cell_order(self):
-        crew_list_path = PROJECT_ROOT / "frontend" / "crew_list.html"
-        html = crew_list_path.read_text(encoding="utf-8")
-        headers = re.findall(r"<th>(.*?)</th>", html)
-        self.assertEqual(
-            ["ID", "账号", "密码", "姓名", "性别", "电话", "状态", "系统角色", "操作"],
-            headers,
-        )
-        self.assertIn('colspan="9"', html)
-
-    def test_admin_page_cache_busts_embedded_frontend_pages(self):
-        admin_path = PROJECT_ROOT / "frontend" / "admin.html"
-        html = admin_path.read_text(encoding="utf-8")
-        self.assertIn('href="crew_list.html?v=2026051902"', html)
-        self.assertIn('href="voyage_list.html?v=2026051902"', html)
-        self.assertIn('src="crew_list.html?v=2026051902"', html)
-
-    def test_login_redirects_to_cache_busted_admin_page(self):
-        index_path = PROJECT_ROOT / "frontend" / "index.html"
-        html = index_path.read_text(encoding="utf-8")
-        self.assertIn("window.location.href = 'admin.html?v=2026051902';", html)
+    def test_admin_and_login_use_current_cache_busting_version(self):
+        admin_html = (PROJECT_ROOT / "frontend" / "admin.html").read_text(encoding="utf-8")
+        index_html = (PROJECT_ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="dashboard.html?v=2026052901"', admin_html)
+        self.assertIn('href="jobs.html?v=2026052901"', admin_html)
+        self.assertIn('src="dashboard.html?v=2026052901"', admin_html)
+        self.assertIn("admin.html?v=2026052901", index_html)

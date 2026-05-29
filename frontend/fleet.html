@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>船舶航线</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div class="page">
+    <div class="header-bar">
+        <div>
+            <h2>船舶、港口与航线管理</h2>
+            <div class="subtitle">把船舶和航线实体化，支撑岗位需求和航线工作量统计</div>
+        </div>
+        <button onclick="loadData()">刷新</button>
+    </div>
+
+    <div class="grid-two">
+        <section class="panel">
+            <div class="panel-title"><h3>新增船舶</h3></div>
+            <div class="form-grid">
+                <div class="field"><label>船名</label><input id="shipName"></div>
+                <div class="field"><label>公司名称</label><input id="companyName" value="东方航运"></div>
+                <div class="field"><label>船舶类型</label><input id="shipType" value="散货船"></div>
+                <div class="field"><label>吨位</label><input id="tonnage" type="number" value="56000"></div>
+                <div class="field"><label>核定人数</label><input id="capacity" type="number" value="24"></div>
+                <button onclick="createShip()">保存船舶</button>
+            </div>
+            <table>
+                <thead><tr><th>船名</th><th>公司</th><th>类型</th><th>吨位</th><th>状态</th></tr></thead>
+                <tbody id="shipBody"></tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <div class="panel-title"><h3>新增港口</h3></div>
+            <div class="form-grid">
+                <div class="field"><label>港口名称</label><input id="portName"></div>
+                <div class="field"><label>国家</label><input id="country" value="中国"></div>
+                <div class="field"><label>城市</label><input id="city"></div>
+                <button onclick="createPort()">保存港口</button>
+            </div>
+            <table>
+                <thead><tr><th>港口</th><th>国家</th><th>城市</th></tr></thead>
+                <tbody id="portBody"></tbody>
+            </table>
+        </section>
+    </div>
+
+    <section class="panel">
+        <div class="panel-title"><h3>航线管理</h3></div>
+        <div class="form-grid">
+            <div class="field"><label>航线名称</label><input id="routeName"></div>
+            <div class="field"><label>出发港</label><select id="departurePort"></select></div>
+            <div class="field"><label>目的港</label><select id="destinationPort"></select></div>
+            <div class="field"><label>海里</label><input id="distanceNm" type="number"></div>
+            <div class="field"><label>预计天数</label><input id="estimatedDays" type="number"></div>
+            <button onclick="createRoute()">保存航线</button>
+        </div>
+        <table>
+            <thead><tr><th>航线名称</th><th>出发港</th><th>目的港</th><th>海里</th><th>预计天数</th><th>状态</th></tr></thead>
+            <tbody id="routeBody"></tbody>
+        </table>
+    </section>
+</div>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+let ports = [];
+
+window.onload = loadData;
+
+async function loadData() {
+    try {
+        const ships = await apiGet('/api/ships');
+        const portResult = await apiGet('/api/ports');
+        const routes = await apiGet('/api/routes');
+        ports = portResult.data;
+        renderShips(ships.data);
+        renderPorts(ports);
+        renderRoutes(routes.data);
+        fillPortOptions();
+    } catch (e) {
+        showToast(e.message || '船舶航线数据加载失败', 'error');
+    }
+}
+
+function fillPortOptions() {
+    const html = ports.map(function(port) {
+        return '<option value="' + port.id + '">' + escapeHtml(port.name) + '</option>';
+    }).join('');
+    document.getElementById('departurePort').innerHTML = html;
+    document.getElementById('destinationPort').innerHTML = html;
+}
+
+function renderShips(rows) {
+    document.getElementById('shipBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + escapeHtml(item.company_name) +
+            '</td><td>' + escapeHtml(item.ship_type) + '</td><td>' + (item.tonnage || '-') +
+            '</td><td>' + badge(item.status) + '</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="empty">暂无船舶</td></tr>';
+}
+
+function renderPorts(rows) {
+    document.getElementById('portBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + escapeHtml(item.country) +
+            '</td><td>' + escapeHtml(item.city || '-') + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" class="empty">暂无港口</td></tr>';
+}
+
+function renderRoutes(rows) {
+    document.getElementById('routeBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.route_name) + '</td><td>' + escapeHtml(item.departure_port) +
+            '</td><td>' + escapeHtml(item.destination_port) + '</td><td>' + (item.distance_nm || '-') +
+            '</td><td>' + (item.estimated_days || '-') + '</td><td>' + badge(item.status) + '</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="empty">暂无航线</td></tr>';
+}
+
+async function createShip() {
+    try {
+        await apiPost('/api/ships', {
+            name: document.getElementById('shipName').value,
+            company_name: document.getElementById('companyName').value,
+            ship_type: document.getElementById('shipType').value,
+            tonnage: Number(document.getElementById('tonnage').value || 0) || null,
+            capacity: Number(document.getElementById('capacity').value || 0) || null
+        });
+        showToast('船舶已保存');
+        loadData();
+    } catch (e) {
+        showToast(e.message || '船舶保存失败', 'error');
+    }
+}
+
+async function createPort() {
+    try {
+        await apiPost('/api/ports', {
+            name: document.getElementById('portName').value,
+            country: document.getElementById('country').value,
+            city: document.getElementById('city').value || null
+        });
+        showToast('港口已保存');
+        loadData();
+    } catch (e) {
+        showToast(e.message || '港口保存失败', 'error');
+    }
+}
+
+async function createRoute() {
+    try {
+        await apiPost('/api/routes', {
+            route_name: document.getElementById('routeName').value || null,
+            departure_port_id: Number(document.getElementById('departurePort').value),
+            destination_port_id: Number(document.getElementById('destinationPort').value),
+            distance_nm: Number(document.getElementById('distanceNm').value || 0) || null,
+            estimated_days: Number(document.getElementById('estimatedDays').value || 0) || null
+        });
+        showToast('航线已保存');
+        loadData();
+    } catch (e) {
+        showToast(e.message || '航线保存失败', 'error');
+    }
+}
+</script>
+</body>
+</html>

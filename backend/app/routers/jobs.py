@@ -17,7 +17,7 @@ def list_jobs(
         require_roles("manager", "shipowner", "admin")
     ),
 ):
-    return {"success": True, "data": services.list_jobs(db)}
+    return {"success": True, "data": services.list_jobs(db, current_user)}
 
 
 @router.post("")

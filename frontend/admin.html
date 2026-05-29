@@ -1,38 +1,101 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>船员管理系统 - 管理端</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出海船员管理系统 - 管理端</title>
+    <link rel="stylesheet" href="common.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { display: flex; height: 100vh; overflow: hidden; font-family: 'Microsoft YaHei', sans-serif;}
-        /* 左侧菜单栏 */
-        .sidebar { width: 220px; background-color: #001529; color: white; }
-        .logo { padding: 20px; font-size: 18px; font-weight: bold; text-align: center; background-color: #002140;}
-        .menu { list-style: none; margin-top: 10px;}
-        .menu a { display: block; padding: 15px 20px; color: #a6adb4; text-decoration: none; }
-        .menu a:hover { background-color: #1890ff; color: white; }
-        /* 右侧主内容区 */
-        .main { flex: 1; display: flex; flex-direction: column; }
-        .header { height: 60px; background-color: #fff; box-shadow: 0 1px 4px rgba(0,21,41,.08); display: flex; align-items: center; justify-content: flex-end; padding-right: 20px;}
-        /* 画框：所有的子页面都在这里面加载 */
-        iframe { flex: 1; border: none; width: 100%; }
+        body {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            padding: 0;
+        }
+        .sidebar {
+            width: 236px;
+            flex: 0 0 236px;
+            background: #102033;
+            color: #fff;
+        }
+        .logo {
+            padding: 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.12);
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .menu {
+            list-style: none;
+            margin: 0;
+            padding: 10px;
+        }
+        .menu a {
+            display: block;
+            padding: 11px 12px;
+            border-radius: 6px;
+            color: #cbd5e1;
+            text-decoration: none;
+        }
+        .menu a:hover,
+        .menu a.active {
+            background: #2563eb;
+            color: #fff;
+        }
+        .main {
+            min-width: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .topbar {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            border-bottom: 1px solid var(--line);
+            background: #fff;
+        }
+        iframe {
+            flex: 1;
+            width: 100%;
+            border: 0;
+        }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="logo">🚢 出海管理系统</div>
-        <ul class="menu">
-            <li><a href="crew_list.html?v=2026051902" target="contentFrame">👨‍✈️ 船员档案管理</a></li>
-            <li><a href="voyage_list.html?v=2026051902" target="contentFrame">🌊 出海航次管理</a></li>
-        </ul>
+<aside class="sidebar">
+    <div class="logo">出海船员管理系统</div>
+    <ul class="menu">
+        <li><a class="active" href="dashboard.html?v=2026052901" target="contentFrame">统计首页</a></li>
+        <li><a href="crew_list.html?v=2026052901" target="contentFrame">船员档案</a></li>
+        <li><a href="certificate_review.html?v=2026052901" target="contentFrame">证书审核</a></li>
+        <li><a href="fleet.html?v=2026052901" target="contentFrame">船舶航线</a></li>
+        <li><a href="jobs.html?v=2026052901" target="contentFrame">岗位匹配</a></li>
+        <li><a href="dispatches.html?v=2026052901" target="contentFrame">派遣跟踪</a></li>
+        <li><a href="voyage_list.html?v=2026052901" target="contentFrame">海历记录</a></li>
+        <li><a href="operation_logs.html?v=2026052901" target="contentFrame">操作日志</a></li>
+    </ul>
+</aside>
+<main class="main">
+    <div class="topbar">
+        <span id="welcome">管理端</span>
+        <button class="secondary" onclick="logout()">退出登录</button>
     </div>
-    <div class="main">
-        <div class="header">
-            <a href="index.html" style="color: red; text-decoration: none; font-weight: bold;">退出登录</a>
-        </div>
-        <iframe name="contentFrame" src="crew_list.html?v=2026051902"></iframe>
-    </div>
+    <iframe name="contentFrame" src="dashboard.html?v=2026052901"></iframe>
+</main>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+document.getElementById('welcome').textContent =
+    '当前用户：' + (localStorage.getItem('displayName') || localStorage.getItem('username') || '-');
+document.querySelectorAll('.menu a').forEach(function(link) {
+    link.addEventListener('click', function() {
+        document.querySelectorAll('.menu a').forEach(function(item) { item.classList.remove('active'); });
+        link.classList.add('active');
+    });
+});
+</script>
 </body>
 </html>

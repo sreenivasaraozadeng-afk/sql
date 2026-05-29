@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证书审核</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div class="page">
+    <div class="header-bar">
+        <div>
+            <h2>证书审核与到期预警</h2>
+            <div class="subtitle">证书必须审核通过且未过期，才会参与岗位匹配评分</div>
+        </div>
+        <button onclick="openAddModal()">录入证书</button>
+    </div>
+
+    <div class="toolbar">
+        <div class="field"><label>审核状态</label><select id="filterStatus" onchange="renderTable()">
+            <option value="">全部</option>
+            <option value="pending">待审核</option>
+            <option value="approved">审核通过</option>
+            <option value="rejected">审核拒绝</option>
+        </select></div>
+        <div class="field"><label>船员/证书搜索</label><input id="keyword" oninput="renderTable()" placeholder="船员姓名或证书类型"></div>
+        <span class="note" id="countText"></span>
+    </div>
+
+    <section class="panel">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th><th>船员</th><th>证书类型</th><th>证书编号</th>
+                <th>签发</th><th>到期</th><th>状态</th><th>风险</th><th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="certificateBody"></tbody>
+        </table>
+    </section>
+</div>
+
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <h3>录入证书</h3>
+        <form id="addForm" class="form-grid">
+            <div class="field"><label>船员</label><select id="crewId"></select></div>
+            <div class="field"><label>证书类型</label><select id="certificateType"></select></div>
+            <div class="field"><label>证书编号</label><input id="certificateNo" required></div>
+            <div class="field"><label>签发日期</label><input id="issuedAt" type="date" required></div>
+            <div class="field"><label>到期日期</label><input id="expiresAt" type="date" required></div>
+        </form>
+        <div class="modal-actions">
+            <button class="secondary" onclick="closeAddModal()">取消</button>
+            <button onclick="submitAdd()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+let certificates = [];
+let crews = [];
+let certificateTypes = [];
+
+window.onload = loadData;
+
+async function loadData() {
+    try {
+        const certResult = await apiGet('/api/certificates');
+        const crewResult = await apiGet('/api/crews');
+        const typeResult = await apiGet('/api/certificate-types');
+        certificates = certResult.data;
+        crews = crewResult.data;
+        certificateTypes = typeResult.data;
+        fillOptions();
+        renderTable();
+    } catch (e) {
+        showToast(e.message || '证书数据加载失败', 'error');
+    }
+}
+
+function fillOptions() {
+    document.getElementById('crewId').innerHTML = crews.map(function(crew) {
+        return '<option value="' + crew.id + '">' + escapeHtml(crew.name + ' - ' + crew.position) + '</option>';
+    }).join('');
+    document.getElementById('certificateType').innerHTML = certificateTypes.map(function(type) {
+        return '<option value="' + escapeHtml(type.name) + '">' + escapeHtml(type.name) + '</option>';
+    }).join('');
+}
+
+function filteredRows() {
+    const status = document.getElementById('filterStatus').value;
+    const keyword = document.getElementById('keyword').value.trim().toLowerCase();
+    return certificates.filter(function(item) {
+        if (status && item.review_status !== status) return false;
+        if (keyword) {
+            const text = (item.crew_name + item.certificate_type + item.certificate_no).toLowerCase();
+            if (text.indexOf(keyword) === -1) return false;
+        }
+        return true;
+    });
+}
+
+function renderTable() {
+    const rows = filteredRows();
+    document.getElementById('countText').textContent = '共 ' + rows.length + ' 条记录';
+    document.getElementById('certificateBody').innerHTML = rows.map(function(item) {
+        const risk = item.is_expired ? '<span class="badge badge-danger">已过期</span>' :
+            (item.is_expiring_soon ? '<span class="badge badge-warning">即将到期</span>' :
+                '<span class="badge badge-success">有效</span>');
+        const actions = item.review_status === 'pending'
+            ? '<button onclick="review(' + item.id + ',\'approved\')">通过</button>' +
+              '<button class="danger" onclick="review(' + item.id + ',\'rejected\')">拒绝</button>'
+            : '<span class="note">已处理</span>';
+        return '<tr><td>' + item.id + '</td><td>' + escapeHtml(item.crew_name) +
+            '</td><td>' + escapeHtml(item.certificate_type) + '</td><td>' +
+            escapeHtml(item.certificate_no) + '</td><td>' + item.issued_at +
+            '</td><td>' + item.expires_at + '</td><td>' + badge(item.review_status) +
+            '</td><td>' + risk + '</td><td><div class="actions">' + actions +
+            '</div></td></tr>';
+    }).join('') || '<tr><td colspan="9" class="empty">暂无证书数据</td></tr>';
+}
+
+function openAddModal() {
+    document.getElementById('addModal').style.display = 'flex';
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').style.display = 'none';
+    document.getElementById('addForm').reset();
+}
+
+async function submitAdd() {
+    const body = {
+        crew_id: Number(document.getElementById('crewId').value),
+        certificate_type: document.getElementById('certificateType').value,
+        certificate_no: document.getElementById('certificateNo').value,
+        issued_at: document.getElementById('issuedAt').value,
+        expires_at: document.getElementById('expiresAt').value
+    };
+    try {
+        await apiPost('/api/certificates', body);
+        showToast('证书已录入，等待审核');
+        closeAddModal();
+        loadData();
+    } catch (e) {
+        showToast(e.message || '录入失败', 'error');
+    }
+}
+
+async function review(id, status) {
+    const remark = status === 'approved' ? '材料完整，审核通过' : '材料不完整，审核拒绝';
+    try {
+        await apiPut('/api/certificates/' + id + '/review', {
+            review_status: status,
+            remark: remark
+        });
+        showToast('审核完成');
+        loadData();
+    } catch (e) {
+        showToast(e.message || '审核失败', 'error');
+    }
+}
+</script>
+</body>
+</html>

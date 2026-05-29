@@ -14,9 +14,9 @@ from ..security import create_access_token
 
 router = APIRouter(prefix="/api", tags=["legacy-compat"])
 
-RUNNING = "\u8fdb\u884c\u4e2d"
-ARRIVED = "\u5df2\u62b5\u8fbe"
-CANCELLED = "\u5df2\u53d6\u6d88"
+RUNNING = "进行中"
+ARRIVED = "已抵达"
+CANCELLED = "已取消"
 
 
 class LegacyCrewStatusUpdate(BaseModel):
@@ -48,7 +48,7 @@ def _legacy_actor(db: Session) -> User:
     if user is None:
         user = db.scalar(select(User).order_by(User.id))
     if user is None:
-        raise services.ApiError(400, "No system user exists")
+        raise services.ApiError(400, "系统用户不存在")
     return user
 
 
@@ -59,7 +59,7 @@ def _naive(value: datetime) -> datetime:
 
 
 def _route_parts(route: str) -> tuple[str, str]:
-    for separator in ("->", "-", "\u2014", "\u81f3"):
+    for separator in ("->", "-", "—", "至"):
         if separator in route:
             departure, destination = route.split(separator, 1)
             return departure.strip(), destination.strip()
@@ -113,7 +113,7 @@ def legacy_login(payload: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token(user.id, user.role)
     return {
         "success": True,
-        "message": "Login successful",
+        "message": "登录成功",
         "token": token,
         "id": _legacy_user_id(user),
         "username": user.username,
@@ -134,7 +134,7 @@ def legacy_update_crew_status(
     db: Session = Depends(get_db),
 ):
     data = services.set_crew_sea_status(db, crew_id, bool(payload.is_at_sea))
-    return {"success": True, "message": "Crew status updated", "data": data}
+    return {"success": True, "message": "船员状态已更新", "data": data}
 
 
 @router.get("/voyages")
@@ -146,15 +146,15 @@ def legacy_list_voyages(db: Session = Depends(get_db)):
 def legacy_create_voyage(payload: LegacyVoyageCreate, db: Session = Depends(get_db)):
     crew = db.get(Crew, payload.crew_id)
     if crew is None:
-        raise services.ApiError(404, "Crew not found")
+        raise services.ApiError(404, "船员不存在")
 
     actor = _legacy_actor(db)
     expected_arrival = payload.expected_arrival_time or payload.departure_time
     job_data = services.create_job(
         db,
         JobCreate(
-            title="Legacy voyage",
-            ship_name="Legacy ship",
+            title="旧页面航次任务",
+            ship_name="旧页面演示船",
             route=f"{payload.departure_point}-{payload.destination_point}",
             required_position=crew.position,
             required_certificates=[],
@@ -169,7 +169,7 @@ def legacy_create_voyage(payload: LegacyVoyageCreate, db: Session = Depends(get_
         actor,
     )
     services.confirm_dispatch(db, dispatch_data["id"], actor)
-    services.onboard_dispatch(db, dispatch_data["id"])
+    services.onboard_dispatch(db, dispatch_data["id"], actor)
 
     voyage = db.scalar(
         select(VoyageRecord)
@@ -180,13 +180,13 @@ def legacy_create_voyage(payload: LegacyVoyageCreate, db: Session = Depends(get_
         .where(VoyageRecord.dispatch_id == dispatch_data["id"])
     )
     if voyage is None:
-        raise services.ApiError(500, "Voyage was not created")
+        raise services.ApiError(500, "航次记录创建失败")
     voyage.onboard_at = _naive(payload.departure_time)
     db.commit()
     db.refresh(voyage)
     return {
         "success": True,
-        "message": "Voyage assigned",
+        "message": "航次任务已分配",
         "data": _legacy_voyage_to_dict(voyage),
     }
 

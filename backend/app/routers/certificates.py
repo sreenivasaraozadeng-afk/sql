@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from .. import services
 from ..dependencies import get_db, require_roles
 from ..models import User
-from ..schemas import CertificateCreate, CertificateUpdate
+from ..schemas import CertificateCreate, CertificateReview, CertificateUpdate
 
 
 router = APIRouter(prefix="/api/certificates", tags=["certificates"])
@@ -26,8 +26,8 @@ def create_certificate(
 ):
     return {
         "success": True,
-        "message": "证书录入成功",
-        "data": services.create_certificate(db, payload),
+        "message": "证书录入成功，等待审核",
+        "data": services.create_certificate(db, payload, current_user),
     }
 
 
@@ -49,5 +49,19 @@ def update_certificate(
     return {
         "success": True,
         "message": "证书更新成功",
-        "data": services.update_certificate(db, certificate_id, payload),
+        "data": services.update_certificate(db, certificate_id, payload, current_user),
+    }
+
+
+@router.put("/{certificate_id}/review")
+def review_certificate(
+    certificate_id: int,
+    payload: CertificateReview,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("cert_admin", "admin")),
+):
+    return {
+        "success": True,
+        "message": "证书审核完成",
+        "data": services.review_certificate(db, certificate_id, payload, current_user),
     }

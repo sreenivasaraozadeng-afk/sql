@@ -10,6 +10,23 @@ from ..schemas import DispatchCreate
 router = APIRouter(prefix="/api/dispatches", tags=["dispatches"])
 
 
+@router.get("")
+def list_dispatches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "shipowner", "admin")),
+):
+    return {"success": True, "data": services.list_dispatches(db, current_user)}
+
+
+@router.get("/{dispatch_id}")
+def get_dispatch(
+    dispatch_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("manager", "shipowner", "admin")),
+):
+    return {"success": True, "data": services.get_dispatch(db, dispatch_id, current_user)}
+
+
 @router.post("")
 def create_dispatch(
     payload: DispatchCreate,
@@ -45,7 +62,7 @@ def onboard_dispatch(
     return {
         "success": True,
         "message": "已确认上船",
-        "data": services.onboard_dispatch(db, dispatch_id),
+        "data": services.onboard_dispatch(db, dispatch_id, current_user),
     }
 
 
@@ -58,7 +75,7 @@ def offboard_dispatch(
     return {
         "success": True,
         "message": "已确认下船",
-        "data": services.offboard_dispatch(db, dispatch_id),
+        "data": services.offboard_dispatch(db, dispatch_id, current_user),
     }
 
 
@@ -71,5 +88,5 @@ def cancel_dispatch(
     return {
         "success": True,
         "message": "派遣已取消",
-        "data": services.cancel_dispatch(db, dispatch_id),
+        "data": services.cancel_dispatch(db, dispatch_id, current_user),
     }

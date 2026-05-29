@@ -15,7 +15,7 @@ def _enforce_role_when_authenticated(
     allowed_roles: set[str],
 ) -> None:
     if current_user is not None and current_user.role not in allowed_roles:
-        raise services.ApiError(403, "Forbidden")
+        raise services.ApiError(403, "当前角色无权执行该操作")
 
 
 @router.get("")
@@ -39,8 +39,8 @@ def create_crew(
     _enforce_role_when_authenticated(current_user, {"manager", "admin"})
     return {
         "success": True,
-        "message": "Crew created",
-        "data": services.create_crew(db, payload),
+        "message": "船员创建成功",
+        "data": services.create_crew(db, payload, current_user),
     }
 
 
@@ -67,8 +67,8 @@ def update_crew(
     _enforce_role_when_authenticated(current_user, {"manager", "admin"})
     return {
         "success": True,
-        "message": "Crew updated",
-        "data": services.update_crew(db, crew_id, payload),
+        "message": "船员更新成功",
+        "data": services.update_crew(db, crew_id, payload, current_user),
     }
 
 
@@ -81,6 +81,6 @@ def delete_crew(
     _enforce_role_when_authenticated(current_user, {"manager", "admin"})
     return {
         "success": True,
-        "message": "Crew deactivated",
-        "data": services.soft_delete_crew(db, crew_id),
+        "message": "船员已停用",
+        "data": services.soft_delete_crew(db, crew_id, current_user),
     }

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作日志</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div class="page">
+    <div class="header-bar">
+        <div>
+            <h2>操作日志</h2>
+            <div class="subtitle">记录关键业务操作，便于论文说明审计设计</div>
+        </div>
+        <button onclick="loadLogs()">刷新</button>
+    </div>
+
+    <section class="panel">
+        <table>
+            <thead>
+            <tr><th>ID</th><th>账号</th><th>动作</th><th>对象</th><th>对象ID</th><th>详情</th><th>时间</th></tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+        </table>
+    </section>
+</div>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+window.onload = loadLogs;
+
+async function loadLogs() {
+    try {
+        const result = await apiGet('/api/operation-logs');
+        document.getElementById('logBody').innerHTML = result.data.map(function(item) {
+            return '<tr><td>' + item.id + '</td><td>' + escapeHtml(item.username || '-') +
+                '</td><td>' + escapeHtml(item.action) + '</td><td>' + escapeHtml(item.target_type) +
+                '</td><td>' + (item.target_id || '-') + '</td><td>' + escapeHtml(item.detail || '-') +
+                '</td><td>' + formatTime(item.created_at) + '</td></tr>';
+        }).join('') || '<tr><td colspan="7" class="empty">暂无操作日志</td></tr>';
+    } catch (e) {
+        showToast(e.message || '日志加载失败', 'error');
+    }
+}
+</script>
+</body>
+</html>

@@ -6,7 +6,19 @@ from fastapi.responses import JSONResponse
 from . import services
 from .database import create_session_factory
 from .models import Base
-from .routers import auth, certificates, crews, dispatches, jobs, legacy, matching
+from .routers import (
+    auth,
+    certificates,
+    crews,
+    dashboard,
+    dispatches,
+    jobs,
+    legacy,
+    logs,
+    lookups,
+    matching,
+    ships,
+)
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -32,7 +44,7 @@ def create_app(
 
     app = FastAPI(
         title="出海船员管理系统 API",
-        version="2.0.0",
+        version="3.0.0",
         default_response_class=UTF8JSONResponse,
     )
     app.state.engine = engine
@@ -66,13 +78,19 @@ def create_app(
     def health():
         return {"success": True, "message": "FastAPI backend is running"}
 
-    # More specific /api/jobs/{id}/matches routes must be registered before /api/jobs/{id}.
     app.include_router(auth.router)
     app.include_router(crews.router)
     app.include_router(certificates.router)
     app.include_router(matching.router)
     app.include_router(jobs.router)
     app.include_router(dispatches.router)
+    app.include_router(ships.router)
+    app.include_router(lookups.positions_router)
+    app.include_router(lookups.certificate_types_router)
+    app.include_router(lookups.ports_router)
+    app.include_router(lookups.routes_router)
+    app.include_router(dashboard.router)
+    app.include_router(logs.router)
     app.include_router(legacy.router)
 
     if seed_demo:

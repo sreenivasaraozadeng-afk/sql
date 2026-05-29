@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>派遣跟踪</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div class="page">
+    <div class="header-bar">
+        <div>
+            <h2>派遣流程跟踪</h2>
+            <div class="subtitle">记录待船东确认、已确认、上船、下船、取消等状态流转</div>
+        </div>
+        <button onclick="loadDispatches()">刷新</button>
+    </div>
+
+    <section class="panel">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th><th>岗位</th><th>船员</th><th>船舶</th><th>航线</th>
+                <th>岗位</th><th>状态</th><th>更新时间</th><th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="dispatchBody"></tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <div class="panel-title"><h3>状态日志</h3><span class="note" id="logNote">选择派遣查看明细</span></div>
+        <table>
+            <thead><tr><th>原状态</th><th>新状态</th><th>说明</th><th>时间</th></tr></thead>
+            <tbody id="statusLogBody"></tbody>
+        </table>
+    </section>
+</div>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+let dispatches = [];
+
+window.onload = loadDispatches;
+
+async function loadDispatches() {
+    try {
+        const result = await apiGet('/api/dispatches');
+        dispatches = result.data;
+        renderDispatches();
+    } catch (e) {
+        showToast(e.message || '派遣数据加载失败', 'error');
+    }
+}
+
+function renderDispatches() {
+    document.getElementById('dispatchBody').innerHTML = dispatches.map(function(item) {
+        return '<tr><td>' + item.id + '</td><td>' + escapeHtml(item.job_title) +
+            '</td><td>' + escapeHtml(item.crew_name) + '</td><td>' + escapeHtml(item.ship_name) +
+            '</td><td>' + escapeHtml(item.route) + '</td><td>' + escapeHtml(item.position) +
+            '</td><td>' + badge(item.status) + '</td><td>' + formatTime(item.updated_at) +
+            '</td><td><div class="actions">' + actionButtons(item) +
+            '<button class="secondary" onclick="loadDetail(' + item.id + ')">日志</button>' +
+            '</div></td></tr>';
+    }).join('') || '<tr><td colspan="9" class="empty">暂无派遣记录</td></tr>';
+}
+
+function actionButtons(item) {
+    if (item.status === 'pending_owner') {
+        return '<button onclick="flow(' + item.id + ',\'confirm\')">确认</button>' +
+            '<button class="danger" onclick="flow(' + item.id + ',\'cancel\')">取消</button>';
+    }
+    if (item.status === 'confirmed') {
+        return '<button onclick="flow(' + item.id + ',\'onboard\')">上船</button>' +
+            '<button class="danger" onclick="flow(' + item.id + ',\'cancel\')">取消</button>';
+    }
+    if (item.status === 'onboard') {
+        return '<button onclick="flow(' + item.id + ',\'offboard\')">下船</button>';
+    }
+    return '';
+}
+
+async function flow(id, action) {
+    try {
+        await apiPut('/api/dispatches/' + id + '/' + action);
+        showToast('状态已更新');
+        loadDispatches();
+        loadDetail(id);
+    } catch (e) {
+        showToast(e.message || '状态更新失败', 'error');
+    }
+}
+
+async function loadDetail(id) {
+    try {
+        const result = await apiGet('/api/dispatches/' + id);
+        document.getElementById('logNote').textContent =
+            '派遣 #' + id + '：' + result.data.crew_name + ' / ' + result.data.job_title;
+        document.getElementById('statusLogBody').innerHTML = result.data.status_logs.map(function(log) {
+            return '<tr><td>' + (log.old_status ? badge(log.old_status) : '-') +
+                '</td><td>' + badge(log.new_status) + '</td><td>' +
+                escapeHtml(log.remark || '-') + '</td><td>' + formatTime(log.created_at) +
+                '</td></tr>';
+        }).join('') || '<tr><td colspan="4" class="empty">暂无状态日志</td></tr>';
+    } catch (e) {
+        showToast(e.message || '日志加载失败', 'error');
+    }
+}
+</script>
+</body>
+</html>

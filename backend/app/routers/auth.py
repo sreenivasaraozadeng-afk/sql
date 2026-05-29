@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from .. import services
 from ..dependencies import get_db
-from ..schemas import LoginRequest, LoginOut, UserOut
+from ..schemas import LoginOut, LoginRequest, UserOut
 from ..security import create_access_token
 
 

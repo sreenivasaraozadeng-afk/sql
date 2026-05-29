@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统计首页</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div class="page">
+    <div class="header-bar">
+        <div>
+            <h2>统计首页</h2>
+            <div class="subtitle">用统计接口展示船员状态、证书风险、派遣趋势和航线工作量</div>
+        </div>
+        <button onclick="loadDashboard()">刷新</button>
+    </div>
+
+    <div class="metric-grid" id="summaryGrid"></div>
+
+    <div class="grid-two">
+        <section class="panel">
+            <div class="panel-title"><h3>船员状态分布</h3></div>
+            <table>
+                <thead><tr><th>状态</th><th>人数</th><th>占比</th></tr></thead>
+                <tbody id="crewStatusBody"></tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <div class="panel-title"><h3>30天证书预警</h3></div>
+            <table>
+                <thead><tr><th>船员</th><th>证书</th><th>到期日期</th><th>审核</th></tr></thead>
+                <tbody id="certificateAlertBody"></tbody>
+            </table>
+        </section>
+    </div>
+
+    <div class="grid-two">
+        <section class="panel">
+            <div class="panel-title"><h3>月度派遣趋势</h3></div>
+            <table>
+                <thead><tr><th>月份</th><th>派遣数</th><th>趋势</th></tr></thead>
+                <tbody id="dispatchTrendBody"></tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <div class="panel-title"><h3>航线工作量</h3></div>
+            <table>
+                <thead><tr><th>航线</th><th>航次数</th><th>当前在船</th><th>工作量</th></tr></thead>
+                <tbody id="routeWorkloadBody"></tbody>
+            </table>
+        </section>
+    </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+
+window.onload = loadDashboard;
+
+async function loadDashboard() {
+    try {
+        const summary = await apiGet('/api/dashboard/summary');
+        const crewStatus = await apiGet('/api/dashboard/crew-status');
+        const alerts = await apiGet('/api/dashboard/certificate-alerts');
+        const trend = await apiGet('/api/dashboard/dispatch-trend');
+        const routes = await apiGet('/api/dashboard/route-workload');
+        renderSummary(summary.data);
+        renderCrewStatus(crewStatus.data);
+        renderAlerts(alerts.data);
+        renderTrend(trend.data);
+        renderRoutes(routes.data);
+    } catch (e) {
+        showToast(e.message || '统计数据加载失败', 'error');
+    }
+}
+
+function renderSummary(data) {
+    const items = [
+        ['船员总数', data.total_crews],
+        ['在岸可派遣', data.available_crews],
+        ['出海中', data.at_sea_crews],
+        ['待审核证书', data.pending_certificate_reviews],
+        ['证书预警', data.certificate_alerts],
+        ['开放岗位', data.open_jobs],
+        ['进行中派遣', data.active_dispatches],
+        ['船舶数量', data.total_ships],
+    ];
+    document.getElementById('summaryGrid').innerHTML = items.map(function(item) {
+        return '<div class="metric"><span>' + item[0] + '</span><strong>' + item[1] + '</strong></div>';
+    }).join('');
+}
+
+function renderCrewStatus(rows) {
+    const total = rows.reduce(function(sum, item) { return sum + item.count; }, 0);
+    document.getElementById('crewStatusBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + badge(item.status) + '</td><td>' + item.count + '</td><td>' +
+            bar(item.count, total) + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" class="empty">暂无数据</td></tr>';
+}
+
+function renderAlerts(rows) {
+    document.getElementById('certificateAlertBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.crew_name) + '</td><td>' +
+            escapeHtml(item.certificate_type) + '</td><td>' + item.expires_at +
+            '</td><td>' + badge(item.review_status) + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="empty">暂无30天内到期证书</td></tr>';
+}
+
+function renderTrend(rows) {
+    const max = Math.max.apply(null, rows.map(function(item) { return item.count; }).concat([0]));
+    document.getElementById('dispatchTrendBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + item.month + '</td><td>' + item.count + '</td><td>' +
+            bar(item.count, max) + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" class="empty">暂无派遣记录</td></tr>';
+}
+
+function renderRoutes(rows) {
+    const max = Math.max.apply(null, rows.map(function(item) { return item.voyage_count; }).concat([0]));
+    document.getElementById('routeWorkloadBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.route) + '</td><td>' + item.voyage_count +
+            '</td><td>' + item.onboard_count + '</td><td>' + bar(item.voyage_count, max) +
+            '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="empty">暂无航线工作量</td></tr>';
+}
+</script>
+</body>
+</html>

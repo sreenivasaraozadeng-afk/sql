@@ -7,67 +7,85 @@
     <link rel="stylesheet" href="common.css">
     <style>
         body {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+        }
+        .login-box {
+            width: min(380px, 100%);
+            padding: 28px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+        }
+        .login-box h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .login-box .subtitle {
+            margin-bottom: 22px;
+        }
+        .login-box .field {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 12px;
         }
-        .login-container {
-            background: white;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            width: 300px;
-            text-align: center;
+        .login-box button {
+            width: 100%;
+            margin-top: 8px;
         }
-        h2 { color: #343a40; margin-bottom: 20px; }
-        input {
-            width: 90%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ced4da;
-            border-radius: 5px;
-            outline: none;
+        .demo {
+            margin-top: 14px;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 13px;
         }
     </style>
 </head>
 <body>
-
-<div class="login-container">
-    <h2>🚢 船员系统登录</h2>
-    <input type="text" id="username" placeholder="请输入用户名 (如: admin)">
-    <input type="password" id="password" placeholder="请输入密码">
-    <button onclick="login()">登 录</button>
+<div class="login-box">
+    <h1>出海船员管理系统</h1>
+    <div class="subtitle">船员资源调度与证书风控平台</div>
+    <div class="field">
+        <label for="username">账号</label>
+        <input id="username" value="admin" autocomplete="username">
+    </div>
+    <div class="field">
+        <label for="password">密码</label>
+        <input id="password" type="password" value="admin123" autocomplete="current-password">
+    </div>
+    <button onclick="login()">登录</button>
+    <div class="demo">
+        演示账号：admin/admin123，manager/manager123，cert_admin/cert123，owner/owner123，crew01/123456
+    </div>
 </div>
 
 <script src="common.js"></script>
 <script>
 async function login() {
-    var user = document.getElementById('username').value;
-    var pass = document.getElementById('password').value;
-
-    if (!user || !pass) {
-        showToast('账号和密码不能为空', 'error');
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    if (!username || !password) {
+        showToast('请输入账号和密码', 'error');
         return;
     }
-
     try {
-        var result = await apiPost('/api/login', { username: user, password: pass });
-        if (result.success) {
-            localStorage.setItem('crewId', result.id);
-            localStorage.setItem('crewName', result.name);
-            if (result.role === 'admin') {
-                alert('🎉 欢迎管理员：' + result.name);
-                window.location.href = 'admin.html';
-            } else {
-                alert('👋 欢迎船员：' + result.name);
-                window.location.href = 'user.html';
-            }
+        const result = await apiPost('/api/login', { username, password });
+        localStorage.setItem('token', result.token);
+        localStorage.setItem('userId', result.id);
+        localStorage.setItem('username', result.username);
+        localStorage.setItem('displayName', result.name);
+        localStorage.setItem('role', result.role);
+        if (result.role === 'admin') {
+            window.location.href = 'admin.html?v=2026052901';
         } else {
-            showToast(result.message, 'error');
+            window.location.href = 'user.html?v=2026052901';
         }
     } catch (e) {
-        showToast('网络请求失败，请检查后端是否启动', 'error');
+        showToast(e.message || '登录失败', 'error');
     }
 }
 </script>

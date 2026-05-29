@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>岗位匹配</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+<div class="page">
+    <div class="header-bar">
+        <div>
+            <h2>岗位需求与智能匹配</h2>
+            <div class="subtitle">匹配分由岗位、证书审核、证书有效期和历史海历共同组成</div>
+        </div>
+        <button onclick="openJobModal()">发布岗位</button>
+    </div>
+
+    <section class="panel">
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th><th>岗位标题</th><th>船舶</th><th>航线</th><th>岗位</th>
+                <th>证书要求</th><th>人数</th><th>上船时间</th><th>状态</th><th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="jobBody"></tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <div class="panel-title">
+            <h3>匹配结果</h3>
+            <span class="note" id="matchNote">选择一个岗位查看推荐船员</span>
+        </div>
+        <table>
+            <thead>
+            <tr><th>船员</th><th>岗位</th><th>状态</th><th>匹配分</th><th>原因</th><th>操作</th></tr>
+            </thead>
+            <tbody id="matchBody"></tbody>
+        </table>
+    </section>
+</div>
+
+<div id="jobModal" class="modal">
+    <div class="modal-content">
+        <h3>发布岗位需求</h3>
+        <form class="form-grid" id="jobForm">
+            <div class="field"><label>标题</label><input id="title" value="远洋水手补员"></div>
+            <div class="field"><label>船舶</label><select id="shipId"></select></div>
+            <div class="field"><label>航线</label><select id="routeId"></select></div>
+            <div class="field"><label>岗位</label><select id="positionId"></select></div>
+            <div class="field"><label>招聘人数</label><input id="headcount" type="number" value="1"></div>
+            <div class="field"><label>预计上船</label><input id="onboardAt" type="datetime-local"></div>
+            <div class="field"><label>所需证书</label><select id="requiredCerts" multiple size="5"></select></div>
+        </form>
+        <div class="modal-actions">
+            <button class="secondary" onclick="closeJobModal()">取消</button>
+            <button onclick="submitJob()">发布</button>
+        </div>
+    </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+requireLogin();
+let jobs = [];
+let ships = [];
+let routes = [];
+let positions = [];
+let certTypes = [];
+let currentJobId = null;
+
+window.onload = loadData;
+
+async function loadData() {
+    try {
+        const jobResult = await apiGet('/api/jobs');
+        const shipResult = await apiGet('/api/ships');
+        const routeResult = await apiGet('/api/routes');
+        const positionResult = await apiGet('/api/positions');
+        const certResult = await apiGet('/api/certificate-types');
+        jobs = jobResult.data;
+        ships = shipResult.data;
+        routes = routeResult.data;
+        positions = positionResult.data;
+        certTypes = certResult.data;
+        fillOptions();
+        renderJobs();
+    } catch (e) {
+        showToast(e.message || '岗位数据加载失败', 'error');
+    }
+}
+
+function fillOptions() {
+    document.getElementById('shipId').innerHTML = ships.map(function(item) {
+        return '<option value="' + item.id + '">' + escapeHtml(item.name) + '</option>';
+    }).join('');
+    document.getElementById('routeId').innerHTML = routes.map(function(item) {
+        return '<option value="' + item.id + '">' + escapeHtml(item.route) + '</option>';
+    }).join('');
+    document.getElementById('positionId').innerHTML = positions.map(function(item) {
+        return '<option value="' + item.id + '">' + escapeHtml(item.name) + '</option>';
+    }).join('');
+    document.getElementById('requiredCerts').innerHTML = certTypes.map(function(item) {
+        return '<option value="' + item.id + '">' + escapeHtml(item.name) + '</option>';
+    }).join('');
+}
+
+function renderJobs() {
+    document.getElementById('jobBody').innerHTML = jobs.map(function(job) {
+        return '<tr><td>' + job.id + '</td><td>' + escapeHtml(job.title) +
+            '</td><td>' + escapeHtml(job.ship_name) + '</td><td>' + escapeHtml(job.route) +
+            '</td><td>' + escapeHtml(job.required_position) + '</td><td>' +
+            escapeHtml(job.required_certificates.join('、') || '无') + '</td><td>' +
+            job.headcount + '</td><td>' + formatTime(job.onboard_at) + '</td><td>' +
+            badge(job.status) + '</td><td><div class="actions">' +
+            '<button onclick="loadMatches(' + job.id + ')">匹配</button>' +
+            '<button class="secondary" onclick="closeJob(' + job.id + ')">关闭</button>' +
+            '</div></td></tr>';
+    }).join('') || '<tr><td colspan="10" class="empty">暂无岗位需求</td></tr>';
+}
+
+async function loadMatches(jobId) {
+    currentJobId = jobId;
+    const job = jobs.find(function(item) { return item.id === jobId; });
+    document.getElementById('matchNote').textContent = job ? ('当前岗位：' + job.title) : '匹配结果';
+    try {
+        const result = await apiGet('/api/jobs/' + jobId + '/matches');
+        renderMatches(result.data);
+    } catch (e) {
+        showToast(e.message || '匹配失败', 'error');
+    }
+}
+
+function renderMatches(rows) {
+    document.getElementById('matchBody').innerHTML = rows.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + escapeHtml(item.position) +
+            '</td><td>' + badge(item.status) + '</td><td><strong>' + item.match_score +
+            '</strong>' + bar(item.match_score, 100) + '</td><td>' +
+            escapeHtml(item.match_reasons.join('；')) + '</td><td>' +
+            '<button onclick="createDispatch(' + item.id + ')">发起派遣</button></td></tr>';
+    }).join('') || '<tr><td colspan="6" class="empty">暂无达到60分的推荐船员</td></tr>';
+}
+
+function openJobModal() {
+    const now = new Date();
+    now.setDate(now.getDate() + 7);
+    document.getElementById('onboardAt').value = now.toISOString().substring(0, 16);
+    document.getElementById('jobModal').style.display = 'flex';
+}
+
+function closeJobModal() {
+    document.getElementById('jobModal').style.display = 'none';
+}
+
+async function submitJob() {
+    const certIds = Array.from(document.getElementById('requiredCerts').selectedOptions)
+        .map(function(option) { return Number(option.value); });
+    try {
+        await apiPost('/api/jobs', {
+            title: document.getElementById('title').value,
+            ship_id: Number(document.getElementById('shipId').value),
+            route_id: Number(document.getElementById('routeId').value),
+            position_id: Number(document.getElementById('positionId').value),
+            required_certificate_type_ids: certIds,
+            headcount: Number(document.getElementById('headcount').value || 1),
+            onboard_at: document.getElementById('onboardAt').value
+        });
+        showToast('岗位已发布');
+        closeJobModal();
+        loadData();
+    } catch (e) {
+        showToast(e.message || '岗位发布失败', 'error');
+    }
+}
+
+async function createDispatch(crewId) {
+    if (!currentJobId) return;
+    try {
+        await apiPost('/api/dispatches', { job_id: currentJobId, crew_id: crewId });
+        showToast('派遣已提交船东确认');
+        loadData();
+        loadMatches(currentJobId);
+    } catch (e) {
+        showToast(e.message || '派遣失败', 'error');
+    }
+}
+
+async function closeJob(jobId) {
+    try {
+        await apiPut('/api/jobs/' + jobId + '/close');
+        showToast('岗位已关闭');
+        loadData();
+    } catch (e) {
+        showToast(e.message || '关闭失败', 'error');
+    }
+}
+</script>
+</body>
+</html>
