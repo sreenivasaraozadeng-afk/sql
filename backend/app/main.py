@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware #跨域配置
+from fastapi.responses import JSONResponse #后端返回 JSON
 
-from . import services
+from . import services #业务逻辑
 from .database import create_session_factory
 from .models import Base
 from .routers import (
@@ -20,11 +20,11 @@ from .routers import (
     ships,
 )
 
-
+#JSON 响应类
 class UTF8JSONResponse(JSONResponse):
     media_type = "application/json; charset=utf-8"
 
-
+# 处理参数校验错误
 def _validation_message(exc: RequestValidationError) -> str:
     errors = exc.errors()
     if not errors:
@@ -34,9 +34,9 @@ def _validation_message(exc: RequestValidationError) -> str:
 
 
 def create_app(
-    database_url: str | None = None,
-    create_tables: bool = False,
-    seed_demo: bool = False,
+    database_url: str | None = None,#数据库连接地址
+    create_tables: bool = False,#是否自动创建数据库表
+    seed_demo: bool = False,#是否插入演示数据
 ) -> FastAPI:
     engine, SessionLocal = create_session_factory(database_url)
     if create_tables:

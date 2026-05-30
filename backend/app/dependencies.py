@@ -35,14 +35,14 @@ def get_current_user(
         raise services.ApiError(401, "登录用户不存在")
     return user
 
+def get_optional_current_user(  # 定义一个函数：尝试获取当前登录用户，但允许用户不登录
+    db: Session = Depends(get_db),  # 通过 Depends 自动获取数据库连接，用来查询用户信息
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),  # 尝试从请求头里获取 token；如果没有 token，就是 None
+) -> User | None:  # 返回值可能是 User 用户对象，也可能是 None
+    if credentials is None:  # 判断前端请求里有没有携带登录 token
+        return None  # 如果没有 token，说明用户未登录，直接返回 None，不报错
 
-def get_optional_current_user(
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> User | None:
-    if credentials is None:
-        return None
-    return get_current_user(db, credentials)
+    return get_current_user(db, credentials)  # 如果有 token，就调用 get_current_user 校验 token，并返回当前用户
 
 
 def require_roles(*roles: str):

@@ -51,7 +51,7 @@ class ApiError(Exception):
 def get_user(db: Session, user_id: int) -> User | None:
     return db.get(User, user_id)
 
-
+#查人和密码
 def authenticate_user(db: Session, payload: LoginRequest) -> User:
     user = db.scalar(select(User).where(User.username == payload.username))
     if user is None or not verify_password(payload.password, user.password_hash):
@@ -546,7 +546,7 @@ def list_crews(db: Session) -> list[dict]:
     ).all()
     return [crew_to_dict(crew) for crew in crews]
 
-
+#写入数据库
 def create_crew(db: Session, payload: CrewCreate, actor: User | None = None) -> dict:
     position_id, position_name = _get_position_name(db, payload.position_id, payload.position)
     user = User(
@@ -566,6 +566,8 @@ def create_crew(db: Session, payload: CrewCreate, actor: User | None = None) -> 
         status="available",
     )
     db.add(crew)
+    #1.创建 User：这是登录账号，写入 users 表。
+    #2.创建 Crew：这是船员档案，写入 crews 表。
     _flush_or_duplicate(db, "账号、身份证号或证书编号已存在")
     _add_operation_log(db, actor, "create", "crew", crew.id, crew.name)
     _commit_or_duplicate(db, "账号、身份证号或证书编号已存在")

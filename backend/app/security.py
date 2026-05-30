@@ -24,7 +24,7 @@ def _b64decode(data: str) -> bytes:
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
-
+#访问需要权限的接口
 def create_access_token(user_id: int, role: str) -> str:
     now = datetime.now(UTC)
     payload = {
